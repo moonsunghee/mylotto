@@ -310,7 +310,7 @@ $('filterOn').addEventListener('change', e => {
 });
 
 // board: 0 = none, 1 = fixed, 2 = excluded
-const boardState = store.get('board', Array(46).fill(0));
+const boardState = Array(46).fill(0);
 function renderBoard() {
   const board = $('board');
   board.innerHTML = '';
@@ -323,7 +323,6 @@ function renderBoard() {
       let next = (boardState[n] + 1) % 3;
       if (next === 1 && fixedCount >= 6) next = 2;
       boardState[n] = next;
-      store.set('board', boardState);
       renderBoard();
     });
     board.appendChild(b);
@@ -332,7 +331,7 @@ function renderBoard() {
   const x = boardState.filter(v => v === 2).length;
   $('boardCount').textContent = `고정 ${f}개 · 제외 ${x}개`;
 }
-$('boardReset').addEventListener('click', () => { boardState.fill(0); store.set('board', boardState); renderBoard(); });
+$('boardReset').addEventListener('click', () => { boardState.fill(0); renderBoard(); });
 renderBoard();
 
 function generate() {
@@ -878,7 +877,6 @@ $('dreamApply').addEventListener('click', () => {
     }
     boardState[p.number] = p.action === 'fixed' ? 1 : 2;
   }
-  store.set('board', boardState);
   renderBoard();
   $('dreamMsg').textContent = skipped.length
     ? `고정수는 최대 6개라 ${skipped.join(', ')}번은 고정하지 못했어요.`
