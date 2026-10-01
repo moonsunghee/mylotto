@@ -774,17 +774,16 @@ $('drawBtn').addEventListener('click', async () => {
   renderTray();
   $('drawStats').innerHTML = '';
   mixing = true;
-  await sleep(1300);
   const shown = [];
-  for (const n of shuffle(result.nums)) {
+  for (const [i, n] of shuffle(result.nums).entries()) {
+    await sleep(i === 0 ? 2000 : i === 5 ? 2000 : 1100);
     drumBalls = drumBalls.filter(b => b.n !== n);
     shown.push(n);
     renderTray(shown);
     $('tray').children[shown.length - 1].classList.add('pop');
-    await sleep(550);
   }
   mixing = false;
-  await sleep(400);
+  await sleep(700);
   renderTray(result.nums);
   await ensureAllRounds();
   $('drawStats').innerHTML = statsHtml(pastStats(result.nums));
