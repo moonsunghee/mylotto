@@ -26,6 +26,7 @@
   --fixed: #2f6fd6;
   --excluded: #b9b3a8;
   --win: #1f9d55;
+  --danger: #d62828;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -39,6 +40,7 @@
     --fixed: #5b95f0;
     --excluded: #5a564f;
     --win: #3cc47a;
+    --danger: #ff6b6b;
   }
 }
 * { box-sizing: border-box; }
@@ -97,6 +99,14 @@ canvas { width: 260px; height: 260px; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.primary { background: var(--accent); color: var(--accent-text); width: 100%; padding: 14px; font-size: 17px; }
 .btn.ghost { background: transparent; color: var(--muted); padding: 6px 10px; font-weight: 500; font-size: 13px; }
+.btn.accent { background: var(--accent); color: var(--accent-text); }
+.dlg {
+  width: min(320px, calc(100% - 32px)); padding: 20px; border: 0; border-radius: 16px;
+  background: var(--surface); color: var(--text); box-shadow: 0 12px 40px rgba(0,0,0,.25);
+}
+.dlg::backdrop { background: rgba(0,0,0,.4); }
+.dlg p { margin: 0 0 18px; font-size: 15px; line-height: 1.6; white-space: pre-line; word-break: keep-all; }
+.dlg-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .msg { margin: 8px 0 0; font-size: 13px; color: var(--accent); text-align: center; }
 .msg:empty { display: none; }
 
@@ -135,6 +145,8 @@ canvas { width: 260px; height: 260px; }
 .rules label { color: var(--text); transition: opacity .15s; }
 .rules label:not(:has(input:checked)) { opacity: .35; }
 .rules label:not(:has(input:checked)) .tag { filter: grayscale(1); }
+.rules li.conflict label { color: var(--danger); }
+.rules li.conflict .tag { box-shadow: 0 0 0 1.5px var(--danger); }
 .rules label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .rules span { word-break: keep-all; }
 .rules .tag {
@@ -159,6 +171,8 @@ canvas { width: 260px; height: 260px; }
 }
 .cell.fixed { background: var(--fixed); border-color: var(--fixed); color: #fff; }
 .cell.excluded { background: var(--excluded); border-color: var(--excluded); color: var(--surface); text-decoration: line-through; }
+.cell.conflict { background: var(--danger); border-color: var(--danger); color: #fff; }
+.board-warn p { margin: 10px 0 0; font-size: 13px; color: var(--danger); word-break: keep-all; }
 .board-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 13px; color: var(--muted); }
 
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -254,8 +268,10 @@ canvas { width: 260px; height: 260px; }
         <div class="legend">
           <span style="--b: var(--fixed)">고정 (최대 6개)</span>
           <span style="--b: var(--excluded)">제외</span>
+          <span style="--b: var(--danger)">필터에 걸림</span>
         </div>
         <div class="board" id="board"></div>
+        <div class="board-warn" id="boardWarn"></div>
         <div class="board-foot">
           <span id="boardCount"></span>
           <button class="btn ghost" id="boardReset">초기화</button>
@@ -285,6 +301,13 @@ canvas { width: 260px; height: 260px; }
         <div class="tray" id="tray"></div>
         <button class="btn primary" id="drawBtn">번호 뽑기</button>
         <p class="msg" id="drawMsg"></p>
+        <dialog class="dlg" id="confirmDlg">
+          <p id="confirmText"></p>
+          <div class="dlg-actions">
+            <button class="btn" id="confirmCancel">취소</button>
+            <button class="btn accent" id="confirmOk">그래도 뽑기</button>
+          </div>
+        </dialog>
         <div id="drawStats"></div>
       </section>
     </div>
@@ -410,6 +433,7 @@ function renderFilters() {
   $('filterOn').textContent = on === filters.length && on > 0 ? '전체 끄기' : '전체 켜기';
   $('filterCount').textContent = `${filters.length}/${MAX_FILTERS}`;
   $('filterAdd').disabled = filters.length >= MAX_FILTERS;
+  updateConflicts();
 }
 const saveFilters = () => { store.set('filters', filters); renderFilters(); };
 
@@ -519,6 +543,79 @@ function renderBoard() {
   const f = boardState.filter(v => v === 1).length;
   const x = boardState.filter(v => v === 2).length;
   $('boardCount').textContent = `고정 ${f}개 · 제외 ${x}개`;
+  updateConflicts();
+}
+
+// 고정수만으로 이 필터에 반드시 걸리는지 보고, 걸리게 만드는 고정수를 돌려줌
+function conflictNums(f, fixed, pool) {
+  const { p } = f;
+  const s = [...fixed].sort((a, b) => a - b);
+  const groups = key => {
+    const g = {};
+    for (const n of s) (g[key(n)] ??= []).push(n);
+    return Object.values(g).filter(a => a.length >= p.n).flat();
+  };
+  const atLeast = cond => {
+    const a = s.filter(cond);
+    return a.length >= p.n ? a : [];
+  };
+  switch (f.type) {
+    case 'run': {
+      const out = [];
+      let cur = [s[0]];
+      for (let i = 1; i <= s.length; i++) {
+        if (s[i] === s[i - 1] + 1) cur.push(s[i]);
+        else {
+          if (cur.length >= p.n) out.push(...cur);
+          cur = [s[i]];
+        }
+      }
+      return out;
+    }
+    case 'tail': return groups(n => n % 10);
+    case 'decade': return groups(n => Math.floor(n / 10));
+    case 'row': return groups(n => Math.floor((n - 1) / 7));
+    case 'col': return groups(n => (n - 1) % 7);
+    case 'odd': return atLeast(n => n % 2);
+    case 'even': return atLeast(n => n % 2 === 0);
+    case 'range': return atLeast(n => n >= p.from && n <= p.to);
+    case 'draw': {
+      const w = drawOf(p.round || latestRound());
+      return w ? atLeast(n => w.nums.includes(n)) : [];
+    }
+    case 'sum': {
+      const need = 6 - s.length;
+      if (pool.length < need) return [];
+      const sorted = [...pool].sort((a, b) => a - b);
+      const lo = sumOf(s) + sumOf(sorted.slice(0, need));
+      const hi = sumOf(s) + sumOf(sorted.slice(sorted.length - need));
+      return lo > p.max || hi < p.min ? s : [];
+    }
+    default: return s.length === 6 && filterBad(f, s) ? s : [];
+  }
+}
+function updateConflicts() {
+  const fixed = [], pool = [];
+  for (let n = 1; n <= 45; n++) {
+    if (boardState[n] === 1) fixed.push(n);
+    else if (boardState[n] === 0) pool.push(n);
+  }
+  const hits = fixed.length
+    ? filters.filter(f => f.on).map(f => ({ f, nums: conflictNums(f, fixed, pool) })).filter(h => h.nums.length)
+    : [];
+  const bad = new Set(hits.flatMap(h => h.nums));
+  document.querySelectorAll('#board .cell').forEach((c, i) => c.classList.toggle('conflict', bad.has(i + 1)));
+  document.querySelectorAll('#rules li').forEach(li => {
+    const id = li.querySelector('[data-on]')?.dataset.on;
+    li.classList.toggle('conflict', hits.some(h => h.f.id === id));
+  });
+  // 여러 필터에 걸리면 한 줄로 줄이고, 어떤 필터인지는 3번 목록의 빨간 줄로 보여 줌
+  $('boardWarn').innerHTML = hits.length === 1
+    ? `<p>${hits[0].nums.join('·')} 고정수가 [${FILTER_TYPES[hits[0].f.type].tag}] ${filterLabel(hits[0].f)} 필터에 걸려요</p>`
+    : hits.length
+      ? `<p>${[...bad].sort((a, b) => a - b).join('·')} 고정수가 켜진 필터 ${hits.length}개에 걸려요</p>`
+      : '';
+  return hits;
 }
 $('boardReset').addEventListener('click', () => { boardState.fill(0); renderBoard(); });
 renderBoard();
@@ -531,6 +628,7 @@ function generate() {
   }
   const need = 6 - fixed.length;
   if (need === 0) return { nums: fixed };
+  if (updateConflicts().length) return { error: '빨간 고정수가 켜진 필터에 걸려요. 고정을 풀거나 그 필터를 꺼 주세요.' };
   if (pool.length < need) return { error: `남은 번호가 ${pool.length}개뿐이에요. 제외수를 줄여 주세요.` };
   const active = filters.filter(f => f.on);
   for (let t = 0; t < 20000; t++) {
@@ -764,7 +862,22 @@ function drawOf(r) {
   return winning[r];
 }
 
+function askConfirm(text) {
+  return new Promise(resolve => {
+    const dlg = $('confirmDlg');
+    const done = ok => { dlg.close(); resolve(ok); };
+    $('confirmText').textContent = text;
+    $('confirmOk').onclick = () => done(true);
+    $('confirmCancel').onclick = () => done(false);
+    dlg.oncancel = e => { e.preventDefault(); done(false); };
+    dlg.showModal();
+  });
+}
+
 $('drawBtn').addEventListener('click', async () => {
+  const hits = updateConflicts();
+  if (boardState.filter(v => v === 1).length === 6 && hits.length
+    && !(await askConfirm(`고정수 6개가 켜진 필터 ${hits.length}개에 걸리는 조합이에요.\n그래도 이 번호로 뽑을까요?`))) return;
   const result = generate();
   $('drawMsg').textContent = result.error || '';
   if (result.error) return;
