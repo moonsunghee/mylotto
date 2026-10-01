@@ -122,9 +122,21 @@ canvas { width: 260px; height: 260px; }
   border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px;
 }
 .filter-add .msg { margin: 0 0 8px; text-align: left; }
+.filter-params input.wide { width: 76px; }
+.filter-params .hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
 .rules input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); flex-shrink: 0; }
 .rules label:has(input:checked) { color: var(--text); }
 .rules span { word-break: keep-all; }
+.rules .tag {
+  flex-shrink: 0; width: 38px; text-align: center; padding: 2px 0; border-radius: 6px;
+  background: oklch(0.94 0.045 var(--h)); color: oklch(0.45 0.11 var(--h));
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) {
+  .rules .tag { background: oklch(0.33 0.05 var(--h)); color: oklch(0.87 0.08 var(--h)); }
+}
+.rules label { gap: 8px; }
+.rules-head { text-align: right; padding-right: 34px; font-size: 11px; color: var(--muted); margin-top: 4px; }
 .rules .rate { margin-left: auto; padding-left: 8px; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 10px; flex-wrap: wrap; }
@@ -242,6 +254,7 @@ canvas { width: 260px; height: 260px; }
 
       <section class="card">
         <h2><span><span class="step">3</span>꽝손 회피 필터</span><label class="toggle-all"><input type="checkbox" id="filterOn" checked> 전체</label></h2>
+        <div class="rules-head">역대 당첨 비율</div>
         <ul class="rules" id="rules"></ul>
         <p class="status">당첨 확률은 그대로예요. 다만 당첨되면 1등을 나눠 가질 사람이 줄어들어요.</p>
         <div class="filter-add">
@@ -338,36 +351,50 @@ const sumOf = s => s.reduce((a, b) => a + b, 0);
 
 // text의 {키}가 입력칸이 되고, params 값은 [최소, 최대, 기본값]
 const FILTER_TYPES = {
-  allUnder: { name: '모두 ○ 이하 (생일 조합)', text: '6개 모두 {max} 이하', params: { max: [6, 44, 31] }, bad: (s, p) => s[5] <= p.max },
-  run: { name: '연속 번호', text: '{n}개 이상 연속 번호', params: { n: [2, 6, 3] }, bad: (s, p) => maxRun(s) >= p.n },
-  tail: { name: '같은 끝수', text: '같은 끝수 {n}개 이상', params: { n: [2, 6, 4] }, bad: (s, p) => maxCount(s, n => n % 10) >= p.n },
-  decade: { name: '같은 번호대', text: '같은 번호대 {n}개 이상', params: { n: [2, 6, 5] }, bad: (s, p) => maxCount(s, n => Math.floor(n / 10)) >= p.n },
-  arith: { name: '등차수열', text: '등차수열 (대각선 포함)', params: {}, bad: s => s.every((n, i) => i < 2 || n - s[i - 1] === s[1] - s[0]) },
-  line: { name: '용지의 같은 줄', text: '용지의 같은 가로줄·세로줄에 {n}개 이상', params: { n: [2, 6, 5] }, bad: (s, p) => maxCount(s, n => Math.floor((n - 1) / 7)) >= p.n || maxCount(s, n => (n - 1) % 7) >= p.n },
-  sum: { name: '합계 범위', text: '합계 {min} 미만 또는 {max} 초과', params: { min: [21, 255, 100], max: [21, 255, 175] }, valid: p => p.min < p.max, bad: (s, p) => sumOf(s) < p.min || sumOf(s) > p.max },
-  odd: { name: '홀수 개수', text: '홀수 {n}개 이상', params: { n: [1, 6, 5] }, bad: (s, p) => s.filter(n => n % 2).length >= p.n },
-  even: { name: '짝수 개수', text: '짝수 {n}개 이상', params: { n: [1, 6, 5] }, bad: (s, p) => s.filter(n => n % 2 === 0).length >= p.n },
-  range: { name: '구간 번호 개수', text: '{from}~{to} 사이 번호 {n}개 이상', params: { from: [1, 45, 1], to: [1, 45, 10], n: [1, 6, 3] }, valid: p => p.from < p.to, bad: (s, p) => s.filter(n => n >= p.from && n <= p.to).length >= p.n },
+  allUnder: { tag: '생일', hue: 25, name: '모두 ○ 이하', text: '6개 모두 {max} 이하', params: { max: [6, 44, 31] }, bad: (s, p) => s[5] <= p.max },
+  run: { tag: '연속', hue: 55, name: '연속 번호', text: '{n}개 이상 연속 번호', params: { n: [2, 6, 3] }, bad: (s, p) => maxRun(s) >= p.n },
+  tail: { tag: '끝수', hue: 75, name: '같은 끝수', text: '같은 끝수 {n}개 이상', params: { n: [2, 6, 4] }, bad: (s, p) => maxCount(s, n => n % 10) >= p.n },
+  decade: { tag: '번대', hue: 100, name: '같은 번호대', text: '같은 번호대 {n}개 이상', params: { n: [2, 6, 5] }, bad: (s, p) => maxCount(s, n => Math.floor(n / 10)) >= p.n },
+  arith: { tag: '등차', hue: 125, name: '등차수열', text: '등차수열 (대각선 포함)', params: {}, bad: s => s.every((n, i) => i < 2 || n - s[i - 1] === s[1] - s[0]) },
+  row: { tag: '가로', hue: 150, name: '용지의 같은 가로줄', text: '용지의 같은 가로줄에 {n}개 이상', params: { n: [2, 6, 5] }, bad: (s, p) => maxCount(s, n => Math.floor((n - 1) / 7)) >= p.n },
+  col: { tag: '세로', hue: 190, name: '용지의 같은 세로줄', text: '용지의 같은 세로줄에 {n}개 이상', params: { n: [2, 6, 5] }, bad: (s, p) => maxCount(s, n => (n - 1) % 7) >= p.n },
+  sum: { tag: '합계', hue: 245, name: '합계 범위', text: '합계 {min} 미만 또는 {max} 초과', params: { min: [21, 255, 100], max: [21, 255, 175] }, valid: p => p.min < p.max, bad: (s, p) => sumOf(s) < p.min || sumOf(s) > p.max },
+  draw: {
+    tag: '회차', hue: 270, name: '직전·특정 회차 번호', text: '{round}회 번호와 {n}개 이상 같음', params: { round: [1, Infinity, ''], n: [1, 6, 3] },
+    hint: '회차를 비워 두면 늘 가장 최근 회차와 비교해요.',
+    label: p => `${p.round ? `${p.round}회` : `직전 회차(${latestRound()}회)`} 번호와 ${p.n}개 이상 같음`,
+    // r은 검사하는 조합의 회차. 직전 회차 비교는 r - 1과, 특정 회차 비교는 그 회차 자신은 빼고 비교
+    bad: (s, p, r) => {
+      const ref = p.round || r - 1;
+      const w = ref !== r && drawOf(ref);
+      return !!w && s.filter(n => w.nums.includes(n)).length >= p.n;
+    },
+  },
+  odd: { tag: '홀수', hue: 300, name: '홀수 개수', text: '홀수 {n}개 이상', params: { n: [1, 6, 5] }, bad: (s, p) => s.filter(n => n % 2).length >= p.n },
+  even: { tag: '짝수', hue: 330, name: '짝수 개수', text: '짝수 {n}개 이상', params: { n: [1, 6, 5] }, bad: (s, p) => s.filter(n => n % 2 === 0).length >= p.n },
+  range: { tag: '구간', hue: 355, name: '구간 번호 개수', text: '{from}~{to} 사이 번호 {n}개 이상', params: { from: [1, 45, 1], to: [1, 45, 10], n: [1, 6, 3] }, valid: p => p.from < p.to, bad: (s, p) => s.filter(n => n >= p.from && n <= p.to).length >= p.n },
 };
 const MAX_FILTERS = 10;
 const defaultParams = type => Object.fromEntries(Object.entries(FILTER_TYPES[type].params).map(([k, v]) => [k, v[2]]));
-const DEFAULT_FILTERS = ['allUnder', 'run', 'tail', 'decade', 'arith', 'line', 'sum']
+const DEFAULT_FILTERS = ['allUnder', 'run', 'tail', 'decade', 'arith', 'row', 'col', 'sum']
   .map(type => ({ id: type, type, p: defaultParams(type), on: true }));
-let filters = store.get('filters', null) ?? structuredClone(DEFAULT_FILTERS);
+// 배포된 이전 버전이 저장한 가로·세로 통합 필터(line)를 두 필터로 나눔
+let filters = (store.get('filters', null) ?? structuredClone(DEFAULT_FILTERS)).flatMap(f => f.type === 'line'
+  ? ['row', 'col'].map(type => ({ ...f, id: `${f.id}-${type}`, type }))
+  : [f]);
 
-const filterBad = (f, s) => FILTER_TYPES[f.type].bad(s, f.p);
-const filterLabel = f => FILTER_TYPES[f.type].text.replace(/\{(\w+)\}/g, (_, k) => f.p[k])
-  + (f.type === 'allUnder' && f.p.max === 31 ? ' (생일 조합)' : '');
+const filterBad = (f, s, r = upcomingRound()) => FILTER_TYPES[f.type].bad(s, f.p, r);
+const filterLabel = f => FILTER_TYPES[f.type].label?.(f.p) ?? FILTER_TYPES[f.type].text.replace(/\{(\w+)\}/g, (_, k) => f.p[k]);
 
 function renderFilters() {
   const draws = [];
   for (let r = 1; r <= latestRound(); r++) {
     const w = drawOf(r);
-    if (w) draws.push(w.nums);
+    if (w) draws.push({ r, nums: w.nums });
   }
   $('rules').innerHTML = filters.map(f => {
-    const pct = draws.filter(s => filterBad(f, s)).length / draws.length * 100;
-    return `<li><label><input type="checkbox" data-on="${f.id}"${f.on ? ' checked' : ''}> <span>${filterLabel(f)}</span><span class="rate">역대 ${pct.toFixed(1)}%</span></label><button class="del" data-del="${f.id}" aria-label="필터 삭제">×</button></li>`;
+    const pct = draws.filter(d => filterBad(f, d.nums, d.r)).length / draws.length * 100;
+    return `<li><label><input type="checkbox" data-on="${f.id}"${f.on ? ' checked' : ''}> <span class="tag" style="--h: ${FILTER_TYPES[f.type].hue}">${FILTER_TYPES[f.type].tag}</span><span>${filterLabel(f)}</span><span class="rate">${pct.toFixed(1)}%</span></label><button class="del" data-del="${f.id}" aria-label="필터 삭제">×</button></li>`;
   }).join('') || '<li class="empty">필터가 없어요.</li>';
   const on = filters.filter(f => f.on).length;
   $('filterOn').checked = on > 0 && on === filters.length;
@@ -397,13 +424,13 @@ $('filterReset').addEventListener('click', () => {
   saveFilters();
 });
 
-$('filterType').innerHTML = Object.entries(FILTER_TYPES).map(([k, t]) => `<option value="${k}">${t.name}</option>`).join('');
+$('filterType').innerHTML = Object.entries(FILTER_TYPES).map(([k, t]) => `<option value="${k}">[${t.tag}] ${t.name}</option>`).join('');
 function renderParamInputs() {
   const t = FILTER_TYPES[$('filterType').value];
   $('filterParams').innerHTML = t.text.replace(/\{(\w+)\}/g, (_, k) => {
     const [min, max, def] = t.params[k];
-    return `<input type="number" inputmode="numeric" data-param="${k}" min="${min}" max="${max}" value="${def}">`;
-  });
+    return `<input type="number" inputmode="numeric" data-param="${k}" min="${min}" max="${max}" value="${def}"${k === 'round' ? ' class="wide" placeholder="직전"' : ''}>`;
+  }) + (t.hint ? `<div class="hint">${t.hint}</div>` : '');
   $('filterMsg').textContent = '';
 }
 $('filterType').addEventListener('change', renderParamInputs);
@@ -413,6 +440,17 @@ $('filterAdd').addEventListener('click', () => {
   const t = FILTER_TYPES[type];
   const p = {};
   for (const input of $('filterParams').querySelectorAll('input')) {
+    if (input.dataset.param === 'round') {
+      const v = input.value === '' ? 0 : Number(input.value);
+      if (input.value !== '' && (!Number.isInteger(v) || v < 1 || v > latestRound())) {
+        $('filterMsg').textContent = v > latestRound()
+          ? `${v}회는 아직 추첨하지 않았어요. 지금은 ${latestRound()}회까지 있어요.`
+          : `회차는 1~${latestRound()} 사이로 입력해 주세요.`;
+        return;
+      }
+      p.round = v;
+      continue;
+    }
     const [min, max] = t.params[input.dataset.param];
     const v = Number(input.value);
     if (!Number.isInteger(v) || v < min || v > max) {
