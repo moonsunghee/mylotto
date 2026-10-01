@@ -70,7 +70,7 @@ button { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 
 .machine { display: flex; justify-content: center; }
 canvas { width: 260px; height: 260px; }
-.tray { display: flex; justify-content: center; gap: 8px; min-height: 52px; margin: 14px 0; flex-wrap: wrap; }
+.tray { display: flex; justify-content: center; gap: 6px; min-height: 52px; margin: 14px 0; }
 .slot { width: 44px; height: 44px; border-radius: 50%; border: 2px dashed var(--line); }
 
 .ball {
@@ -84,7 +84,7 @@ canvas { width: 260px; height: 260px; }
 }
 .ball.pop { animation: pop .45s cubic-bezier(.3,1.6,.5,1); }
 .ball.sm { width: 32px; height: 32px; font-size: 13px; }
-.ball.md { width: 38px; height: 38px; font-size: 15px; }
+.ball.md { width: 36px; height: 36px; font-size: 15px; }
 .ball.dim { opacity: .28; }
 .ball.hit { outline: 3px solid var(--win); outline-offset: 2px; }
 @keyframes pop { from { transform: scale(0) translateY(-30px); } to { transform: scale(1) translateY(0); } }
@@ -166,7 +166,7 @@ canvas { width: 260px; height: 260px; }
   width: 90px; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line);
   background: var(--surface); color: var(--text); font: inherit;
 }
-.win-balls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+.win-balls { display: flex; gap: 4px; align-items: center; margin-top: 12px; }
 .plus { color: var(--muted); font-weight: 700; }
 .status { font-size: 13px; color: var(--muted); margin-top: 8px; }
 .manual { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); }
@@ -561,23 +561,31 @@ function stepDrum() {
     }
     b.vx *= 0.97; b.vy *= 0.97;
     b.x += b.vx; b.y += b.vy;
-    const dx = b.x - C, dy = b.y - C, dist = Math.hypot(dx, dy), max = R - BR;
-    if (dist > max) {
-      const nx = dx / dist, ny = dy / dist;
-      b.x = C + nx * max; b.y = C + ny * max;
-      const dot = b.vx * nx + b.vy * ny;
-      b.vx -= 1.6 * dot * nx; b.vy -= 1.6 * dot * ny;
-    }
+    keepInside(b, true);
   }
-  for (let i = 0; i < drumBalls.length; i++) {
-    for (let j = i + 1; j < drumBalls.length; j++) {
-      const a = drumBalls[i], b = drumBalls[j];
-      const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
-      if (d < BR * 2) {
-        const push = (BR * 2 - d) / 2, nx = dx / d, ny = dy / d;
-        a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
+  // 겹침을 밀어낸 공이 원 밖으로 나가지 않도록 밀어내기와 벽 처리를 번갈아 반복
+  for (let pass = 0; pass < 4; pass++) {
+    for (let i = 0; i < drumBalls.length; i++) {
+      for (let j = i + 1; j < drumBalls.length; j++) {
+        const a = drumBalls[i], b = drumBalls[j];
+        const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
+        if (d < BR * 2) {
+          const push = (BR * 2 - d) / 2, nx = dx / d, ny = dy / d;
+          a.x -= nx * push; a.y -= ny * push; b.x += nx * push; b.y += ny * push;
+        }
       }
     }
+    drumBalls.forEach(b => keepInside(b, false));
+  }
+}
+function keepInside(b, bounce) {
+  const dx = b.x - C, dy = b.y - C, dist = Math.hypot(dx, dy), max = R - BR;
+  if (dist <= max) return;
+  const nx = dx / dist, ny = dy / dist;
+  b.x = C + nx * max; b.y = C + ny * max;
+  if (bounce) {
+    const dot = b.vx * nx + b.vy * ny;
+    b.vx -= 1.6 * dot * nx; b.vy -= 1.6 * dot * ny;
   }
 }
 function drawDrum() {
