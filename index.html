@@ -100,10 +100,8 @@ canvas { width: 260px; height: 260px; }
 .msg { margin: 8px 0 0; font-size: 13px; color: var(--accent); text-align: center; }
 .msg:empty { display: none; }
 
-.toggle-all { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; font-weight: 400; color: var(--muted); }
-.toggle-all input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .rules { list-style: none; margin: 8px 0 0; padding: 0; color: var(--muted); font-size: 14px; }
-.rules li { display: flex; align-items: center; gap: 2px; }
+.rules li { position: relative; display: flex; align-items: center; gap: 2px; }
 .rules label { flex: 1; display: flex; align-items: center; gap: 10px; padding: 7px 0; cursor: pointer; }
 .rules .del {
   flex-shrink: 0; width: 32px; height: 32px; border: 0; border-radius: 8px;
@@ -133,8 +131,11 @@ canvas { width: 260px; height: 260px; }
 .filter-add .msg { margin: 0 0 8px; text-align: left; }
 .filter-params input.wide { width: 76px; }
 .filter-params .hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
-.rules input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); flex-shrink: 0; }
-.rules label:has(input:checked) { color: var(--text); }
+.rules input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.rules label { color: var(--text); transition: opacity .15s; }
+.rules label:not(:has(input:checked)) { opacity: .35; }
+.rules label:not(:has(input:checked)) .tag { filter: grayscale(1); }
+.rules label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 .rules span { word-break: keep-all; }
 .rules .tag {
   flex-shrink: 0; width: 38px; text-align: center; padding: 2px 0; border-radius: 6px;
@@ -262,7 +263,7 @@ canvas { width: 260px; height: 260px; }
       </section>
 
       <section class="card">
-        <h2><span><span class="step">3</span>꽝손 회피 필터</span><label class="toggle-all"><input type="checkbox" id="filterOn" checked> 전체</label></h2>
+        <h2><span><span class="step">3</span>꽝손 회피 필터</span><button class="btn ghost" id="filterOn"></button></h2>
         <div class="rules-head">역대 당첨 비율</div>
         <ul class="rules" id="rules"></ul>
         <p class="status">당첨 확률은 그대로예요. 다만 당첨되면 1등을 나눠 가질 사람이 줄어들어요.</p>
@@ -406,8 +407,7 @@ function renderFilters() {
     return `<li><label><input type="checkbox" data-on="${f.id}"${f.on ? ' checked' : ''}> <span class="tag" style="--h: ${FILTER_TYPES[f.type].hue}">${FILTER_TYPES[f.type].tag}</span><span>${filterLabel(f)}</span><span class="rate">${pct.toFixed(1)}%</span></label><button class="del" data-del="${f.id}" aria-label="필터 삭제">×</button></li>`;
   }).join('') || '<li class="empty">필터가 없어요.</li>';
   const on = filters.filter(f => f.on).length;
-  $('filterOn').checked = on > 0 && on === filters.length;
-  $('filterOn').indeterminate = on > 0 && on < filters.length;
+  $('filterOn').textContent = on === filters.length && on > 0 ? '전체 끄기' : '전체 켜기';
   $('filterCount').textContent = `${filters.length}/${MAX_FILTERS}`;
   $('filterAdd').disabled = filters.length >= MAX_FILTERS;
 }
@@ -423,8 +423,9 @@ $('rules').addEventListener('click', e => {
   filters = filters.filter(f => f.id !== id);
   saveFilters();
 });
-$('filterOn').addEventListener('change', e => {
-  filters.forEach(f => { f.on = e.target.checked; });
+$('filterOn').addEventListener('click', () => {
+  const allOn = filters.every(f => f.on);
+  filters.forEach(f => { f.on = !allOn; });
   saveFilters();
 });
 $('filterReset').addEventListener('click', () => {
