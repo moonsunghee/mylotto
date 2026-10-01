@@ -425,6 +425,11 @@ $('filterAdd').addEventListener('click', () => {
     $('filterMsg').textContent = '앞의 숫자가 뒤의 숫자보다 작아야 해요.';
     return;
   }
+  const dup = filters.find(f => f.type === type && Object.keys(p).every(k => f.p[k] === p[k]));
+  if (dup) {
+    $('filterMsg').textContent = `"${filterLabel(dup)}" 필터가 이미 있어요.`;
+    return;
+  }
   filters.push({ id: Date.now().toString(36), type, p, on: true });
   $('filterMsg').textContent = '';
   saveFilters();
