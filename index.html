@@ -121,6 +121,15 @@ canvas { width: 260px; height: 260px; }
   width: 60px; margin: 0 4px; padding: 6px 4px; text-align: center; border-radius: 8px;
   border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 16px;
 }
+.stepper {
+  display: inline-flex; align-items: stretch; margin: 0 4px; vertical-align: middle; line-height: 1.5;
+  border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface);
+}
+.stepper input { width: 44px; margin: 0; border: 0; border-radius: 0; padding: 6px 0; }
+.stepper button {
+  width: 34px; border: 0; background: var(--surface-2); color: var(--text);
+  font: inherit; font-size: 18px; cursor: pointer; padding: 0;
+}
 .filter-add .msg { margin: 0 0 8px; text-align: left; }
 .filter-params input.wide { width: 76px; }
 .filter-params .hint { font-size: 12px; color: var(--muted); line-height: 1.5; }
@@ -427,13 +436,28 @@ $('filterReset').addEventListener('click', () => {
 $('filterType').innerHTML = Object.entries(FILTER_TYPES).map(([k, t]) => `<option value="${k}">[${t.tag}] ${t.name}</option>`).join('');
 function renderParamInputs() {
   const t = FILTER_TYPES[$('filterType').value];
+  // type="number"는 iOS에서 select()가 안 돼서 text + inputmode로 숫자 키패드를 띄움
   $('filterParams').innerHTML = t.text.replace(/\{(\w+)\}/g, (_, k) => {
-    const [min, max, def] = t.params[k];
-    return `<input type="number" inputmode="numeric" data-param="${k}" min="${min}" max="${max}" value="${def}"${k === 'round' ? ' class="wide" placeholder="직전"' : ''}>`;
+    const [, , def] = t.params[k];
+    if (k === 'round') {
+      return `<input type="text" inputmode="numeric" pattern="[0-9]*" data-param="round" class="wide" placeholder="직전" value="${def}">`;
+    }
+    return `<span class="stepper"><button type="button" data-step="-1" aria-label="1 줄이기">−</button><input type="text" inputmode="numeric" pattern="[0-9]*" data-param="${k}" value="${def}"><button type="button" data-step="1" aria-label="1 늘리기">+</button></span>`;
   }) + (t.hint ? `<div class="hint">${t.hint}</div>` : '');
   $('filterMsg').textContent = '';
 }
 $('filterType').addEventListener('change', renderParamInputs);
+$('filterParams').addEventListener('focusin', e => {
+  if (e.target.tagName === 'INPUT') setTimeout(() => e.target.select(), 0);
+});
+$('filterParams').addEventListener('click', e => {
+  const btn = e.target.closest('[data-step]');
+  if (!btn) return;
+  const input = btn.parentElement.querySelector('input');
+  const [min, max, def] = FILTER_TYPES[$('filterType').value].params[input.dataset.param];
+  const cur = Number.isInteger(Number(input.value)) && input.value !== '' ? Number(input.value) : def;
+  input.value = Math.min(max, Math.max(min, cur + Number(btn.dataset.step)));
+});
 renderParamInputs();
 $('filterAdd').addEventListener('click', () => {
   const type = $('filterType').value;
